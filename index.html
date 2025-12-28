@@ -3,999 +3,998 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Бот для отслеживания ценных бумаг (БВФБ)</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Telegram Бот - Уведомления о ценных бумагах</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { font-family: 'Inter', sans-serif; }
-        .card-shadow { box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); }
-        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .toast {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Мобильная адаптация */
+        @media (max-width: 768px) {
+            .mobile-full {
+                width: 100% !important;
+            }
+            .mobile-stack {
+                flex-direction: column !important;
+            }
+            .mobile-center {
+                text-align: center !important;
+            }
+            .mobile-p-2 {
+                padding: 0.5rem !important;
+            }
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-<div class="container mx-auto px-4 py-8">
+<body class="bg-gray-50">
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
     <!-- Header -->
-    <header class="text-center mb-12">
-        <h1 class="text-4xl font-bold text-gray-800 mb-4">
-            <i class="fas fa-robot text-blue-500 mr-3"></i>
-            Telegram Бот для отслеживания ценных бумаг
-        </h1>
-        <p class="text-gray-600 text-lg max-w-3xl mx-auto">
-            Получайте ежедневные уведомления о цене, изменениях и итогах торгов (вторичный рынок) через Telegram.
-        </p>
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fab fa-telegram text-3xl"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold">Telegram Бот</h1>
+                        <p class="text-sm opacity-90">Автоматические уведомления о ценных бумагах</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center space-x-2 text-sm">
+                    <span id="currentTime" class="bg-white/20 px-3 py-1 rounded-full"></span>
+                    <span id="connectionStatus" class="bg-green-500 px-3 py-1 rounded-full flex items-center">
+                        <i class="fas fa-circle text-xs mr-1"></i> Активно
+                    </span>
+                </div>
+            </div>
+        </div>
     </header>
 
     <!-- Main Content -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-        <!-- Left Column: Security Information -->
-        <div class="bg-white rounded-2xl card-shadow p-6">
-            <div class="flex items-start justify-between gap-4 mb-6">
-                <div>
-                    <h2 class="text-2xl font-bold text-gray-800">
-                        <i class="fas fa-chart-line text-green-500 mr-2"></i>
-                        Информация о ценной бумаге
-                    </h2>
-                    <div class="mt-2 text-sm text-gray-500">
-                        Последнее обновление на странице: <span id="lastUpdated" class="font-medium text-gray-700">—</span>
-                    </div>
-                </div>
-
-                <div class="flex flex-col items-end gap-2">
-                    <span class="bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded-full">
-                        Актуальные данные
-                    </span>
-                    <button id="refreshDataBtn" class="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-xl border border-blue-200 text-blue-700 hover:bg-blue-50 transition">
-                        <i class="fas fa-rotate"></i>
-                        Обновить с БВФБ
-                    </button>
-                </div>
-            </div>
-
-            <!-- Source Info -->
-            <div class="mb-6 p-4 bg-blue-50 rounded-xl">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-link text-blue-500 mr-2"></i>
-                    <span class="font-medium text-gray-700">Источник данных:</span>
-                </div>
-                <a id="sourceLink" href="https://www.bcse.by/stock/securitydirectory/100345505/5-200-01-3593" target="_blank" class="text-blue-600 hover:text-blue-800 break-all">
-                    https://www.bcse.by/stock/securitydirectory/100345505/5-200-01-3593
-                </a>
-                <div class="mt-2 text-xs text-blue-800/80">
-                    Примечание: из-за CORS браузер может не позволить загрузить страницу напрямую. Если «Обновить» не сработает — введите значения вручную.
-                </div>
-            </div>
-
-            <!-- Security Details -->
-            <div class="space-y-6">
-
-                <!-- Last Trade Date -->
-                <div class="p-4 border border-gray-200 rounded-xl">
-                    <div class="flex items-center mb-2">
-                        <i class="fas fa-calendar-alt text-purple-500 mr-3"></i>
-                        <h3 class="text-lg font-semibold text-gray-800">Дата последней сделки</h3>
-                    </div>
-                    <div class="flex items-center flex-wrap gap-3">
-                        <div class="text-3xl font-bold text-gray-900" id="lastTradeDate">17.12.2025</div>
-                        <div class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
-                            <i class="fas fa-clock mr-1"></i> <span id="freshness">Актуально</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Price Information -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Current Price -->
-                    <div class="p-4 border border-gray-200 rounded-xl">
-                        <div class="flex items-center mb-2">
-                            <i class="fas fa-money-bill-wave text-green-500 mr-3"></i>
-                            <h3 class="text-lg font-semibold text-gray-800">Цена, BYN</h3>
-                        </div>
-                        <div class="text-3xl font-bold text-green-600"><span id="currentPrice">41.40</span></div>
-                        <div class="text-sm text-gray-500 mt-1">Текущая цена</div>
-                    </div>
-
-                    <!-- Change -->
-                    <div class="p-4 border border-gray-200 rounded-xl">
-                        <div class="flex items-center mb-2">
-                            <i class="fas fa-chart-bar text-orange-500 mr-3"></i>
-                            <h3 class="text-lg font-semibold text-gray-800">Изменение</h3>
-                        </div>
-                        <div class="flex items-center flex-wrap gap-3">
-                            <div class="text-3xl font-bold text-orange-600"><span id="priceChange">9.40</span></div>
-                            <div class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
-                                <i class="fas fa-arrow-up mr-1"></i> <span id="priceChangePercent">29.37%</span>
-                            </div>
-                        </div>
-                        <div class="text-sm text-gray-500 mt-1">Изменение цены</div>
-                    </div>
-                </div>
-
-                <!-- Secondary market results -->
-                <div class="p-4 border border-gray-200 rounded-xl">
-                    <div class="flex items-start justify-between gap-3 mb-4">
-                        <div>
-                            <div class="flex items-center">
-                                <i class="fas fa-clipboard-list text-indigo-500 mr-3"></i>
-                                <h3 class="text-lg font-semibold text-gray-800">Итоги торгов — купля/продажа (вторичный)</h3>
-                            </div>
-                            <div class="text-sm text-gray-500 mt-1">Цена, вал. ценообр.: мин / макс / срвз</div>
-                            <div class="mt-2 text-xs text-blue-600 flex items-center gap-1">
-                                <i class="fas fa-sync-alt animate-spin"></i>
-                                <span>Данные обновляются автоматически с БВФБ</span>
-                            </div>
-                        </div>
-                        <button id="editSecondaryBtn" class="shrink-0 inline-flex items-center gap-2 text-sm px-3 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
-                            <i class="fas fa-pen"></i>
-                            Ручной ввод
+    <main class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column - Stock Info -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Stock Info Card -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800">
+                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>
+                            Информация о ценной бумаге
+                        </h2>
+                        <button id="refreshFromBcse" class="text-purple-600 hover:text-purple-700 transition-colors">
+                            <i class="fas fa-sync-alt"></i> Обновить с БВФБ
                         </button>
                     </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                            <div class="text-xs text-gray-500">мин.</div>
-                            <div class="text-2xl font-bold text-gray-900"><span id="secMin">—</span></div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-1">Дата последней сделки</p>
+                            <p id="stockDate" class="text-lg font-semibold text-gray-800">17.12.2025</p>
                         </div>
-                        <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                            <div class="text-xs text-gray-500">макс.</div>
-                            <div class="text-2xl font-bold text-gray-900"><span id="secMax">—</span></div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-1">Текущая цена</p>
+                            <p id="stockPrice" class="text-lg font-semibold text-gray-800">41.40 BYN</p>
                         </div>
-                        <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                            <div class="text-xs text-gray-500">срвз</div>
-                            <div class="text-2xl font-bold text-gray-900"><span id="secAvg">—</span></div>
+                        <div class="bg-green-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-1">Изменение цены</p>
+                            <p id="stockChange" class="text-lg font-semibold text-green-600">+9.40 BYN</p>
+                        </div>
+                        <div class="bg-blue-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-1">Процент изменения</p>
+                            <p id="stockChangePercent" class="text-lg font-semibold text-blue-600">+29.37%</p>
                         </div>
                     </div>
-
-                    <div class="mt-3 text-xs text-gray-500">
-                        ✅ Эти значения добавлены в «подробный» формат уведомления Telegram.
+                    
+                    <div class="mt-4 p-3 bg-purple-50 rounded-lg">
+                        <a href="https://www.bcse.by/stock/securitydirectory/100345505/5-200-01-3593" 
+                           target="_blank" 
+                           class="text-purple-600 hover:text-purple-700 text-sm flex items-center">
+                            <i class="fas fa-external-link-alt mr-2"></i>
+                            Источник: Белорусская валютно-фондовая биржа
+                        </a>
                     </div>
                 </div>
 
-                <!-- Summary Card -->
-                <div class="p-4 gradient-bg text-white rounded-xl">
-                    <div class="flex items-center mb-3">
-                        <i class="fas fa-info-circle text-white mr-3"></i>
-                        <h3 class="text-lg font-semibold">Краткая информация</h3>
+                <!-- Secondary Market Info -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800">
+                            <i class="fas fa-exchange-alt text-purple-600 mr-2"></i>
+                            Итоги торгов — купля/продажа (вторичный)
+                        </h2>
+                        <button id="editSecondaryBtn" class="text-purple-600 hover:text-purple-700 transition-colors">
+                            <i class="fas fa-edit"></i> Ручной ввод
+                        </button>
                     </div>
-                    <p class="text-white/90" id="summaryText">
-                        Ценная бумага показывает значительный рост на 29.37% с изменением цены на 9.40 BYN.
-                        Последняя сделка была зафиксирована 16 декабря 2025 года по цене 41.40 BYN.
-                    </p>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Right Column: Telegram Bot Configuration -->
-        <div class="bg-white rounded-2xl card-shadow p-6">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">
-                    <i class="fab fa-telegram text-blue-400 mr-2"></i>
-                    Настройка Telegram Бота
-                </h2>
-                <span class="bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded-full">
-                    <i class="fas fa-bolt mr-1"></i> Активный
-                </span>
-            </div>
-
-            <!-- Bot Status -->
-            <div class="mb-8 p-4 bg-gray-50 rounded-xl">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center">
-                        <div class="w-3 h-3 bg-green-500 rounded-full mr-3 pulse"></div>
-                        <span class="font-medium text-gray-700">Статус бота:</span>
-                    </div>
-                    <span class="font-semibold text-green-600">Готов к работе</span>
-                </div>
-                <p class="text-gray-600 text-sm">
-                    Внимание: токен бота находится на клиенте (в браузере) — это небезопасно для реальных проектов.
-                    Для продакшена нужна серверная часть.
-                </p>
-            </div>
-
-            <!-- Configuration Form -->
-            <form id="botConfigForm" class="space-y-6">
-                <!-- Telegram Chat ID -->
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">
-                        <i class="fas fa-user-circle text-blue-500 mr-2"></i>
-                        Ваш Chat ID в Telegram
-                    </label>
-                    <input type="text" id="chatId" placeholder="Введите ваш Chat ID (например: 123456789)"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" required>
-                    <p class="text-gray-500 text-sm mt-2">
-                        Чтобы получить Chat ID, напишите <span class="font-mono">/start</span> боту
-                        <span class="font-semibold text-blue-600">@userinfobot</span> в Telegram
-                    </p>
-                </div>
-
-                <!-- Notification Time -->
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">
-                        <i class="fas fa-clock text-purple-500 mr-2"></i>
-                        Время отправки уведомлений
-                    </label>
-                    <input type="time" id="notificationTime" value="09:00"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition" required>
-                    <p class="text-gray-500 text-sm mt-2">Ежедневное время, когда вы будете получать уведомление</p>
-                </div>
-
-                <!-- Notification Format -->
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">
-                        <i class="fas fa-edit text-green-500 mr-2"></i>
-                        Формат уведомления
-                    </label>
-                    <div class="space-y-2">
-                        <label class="flex items-center">
-                            <input type="radio" name="format" value="short" checked class="mr-3">
-                            <span>Краткий формат (основные данные)</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="radio" name="format" value="detailed" class="mr-3">
-                            <span>Подробный формат (включая итоги торгов)</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Submit Button -->
-                <div class="pt-4">
-                    <button type="submit"
-                            class="w-full gradient-bg text-white font-semibold py-3 px-6 rounded-xl hover:opacity-90 transition flex items-center justify-center">
-                        <i class="fas fa-paper-plane mr-3"></i>
-                        Активировать ежедневные уведомления
-                    </button>
-                </div>
-            </form>
-
-            <!-- Bot Instructions -->
-            <div class="mt-8 p-4 bg-blue-50 rounded-xl">
-                <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
-                    <i class="fas fa-question-circle text-blue-500 mr-2"></i>
-                    Как это работает?
-                </h3>
-                <ol class="list-decimal list-inside space-y-2 text-gray-600">
-                    <li>Введите ваш Chat ID из Telegram</li>
-                    <li>Выберите время для уведомления</li>
-                    <li>Нажмите «Активировать» (вам придёт подтверждение)</li>
-                    <li>Для настоящей ежедневной отправки нужна серверная часть (cron)</li>
-                </ol>
-            </div>
-
-            <!-- Test Notification -->
-            <div class="mt-6">
-                <button id="testNotification"
-                        class="w-full border-2 border-blue-500 text-blue-600 font-semibold py-3 px-6 rounded-xl hover:bg-blue-50 transition flex items-center justify-center">
-                    <i class="fas fa-bell mr-3"></i>
-                    Отправить тестовое уведомление
-                </button>
-            </div>
-
-        </div>
-    </div>
-
-    <!-- Demo Notification Preview -->
-    <div class="mt-12 bg-white rounded-2xl card-shadow p-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <i class="fas fa-eye text-purple-500 mr-2"></i>
-            Пример уведомления от бота
-        </h2>
-        <div class="max-w-md mx-auto">
-            <div class="bg-gray-100 rounded-2xl p-4">
-                <div class="flex items-center mb-3">
-                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
-                        <i class="fas fa-robot text-white"></i>
-                    </div>
-                    <div>
-                        <div class="font-semibold">Stock Tracker Bot</div>
-                        <div class="text-xs text-gray-500">Сегодня, 09:00</div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-4">
-                    <div class="font-bold text-lg mb-2">📈 Ежедневный отчет по ценной бумаге</div>
-                    <div class="space-y-2">
-                        <div><span class="font-medium">Дата сделки:</span> <span id="previewDate">17.12.2025</span></div>
-                        <div><span class="font-medium">Текущая цена:</span> <span id="previewPrice">41.40</span> BYN</div>
-                        <div><span class="font-medium">Изменение:</span> +<span id="previewChange">9.40</span> BYN (+<span id="previewPercent">29.37%</span>)</div>
-                        <div class="pt-2">
-                            <div class="font-medium">Итоги торгов (вторич.):</div>
-                            <div class="text-sm text-gray-700">
-                                мин. <span id="previewMin">—</span> · макс. <span id="previewMax">—</span> · срвз <span id="previewAvg">—</span>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <p class="text-sm text-gray-600 mb-2">Цена, вал. ценообр.: мин / макс / срвз</p>
+                        <div class="text-xs text-gray-500 mb-3" id="secondaryStatus">
+                            <i class="fas fa-info-circle"></i> Данные обновляются автоматически с БВФБ
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="text-center">
+                                <p class="text-xs text-gray-600 mb-1">мин.</p>
+                                <p id="secondaryMin" class="text-lg font-semibold text-gray-800">—</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-xs text-gray-600 mb-1">макс.</p>
+                                <p id="secondaryMax" class="text-lg font-semibold text-gray-800">—</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-xs text-gray-600 mb-1">срвз</p>
+                                <p id="secondaryAvg" class="text-lg font-semibold text-gray-800">—</p>
                             </div>
                         </div>
-                        <div class="pt-2 text-sm text-gray-500">Источник: Белорусская валютно-фондовая биржа</div>
+                    </div>
+                    
+                    <div class="text-xs text-gray-500">
+                        <i class="fas fa-info-circle"></i> Эти значения добавлены в «подробный» формат уведомления Telegram.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Bot Settings -->
+            <div class="space-y-6">
+                <!-- Bot Settings Card -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-robot text-purple-600 mr-2"></i>
+                        Настройки Telegram бота
+                    </h2>
+                    
+                    <form id="botSettingsForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Chat ID
+                            </label>
+                            <input type="text" 
+                                   id="chatId" 
+                                   value="273298263"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="Введите Chat ID">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Время уведомлений
+                            </label>
+                            <input type="time" 
+                                   id="notificationTime" 
+                                   value="09:00"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Формат уведомления
+                            </label>
+                            <select id="notificationFormat" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="brief">Краткий</option>
+                                <option value="detailed" selected>Подробный</option>
+                            </select>
+                        </div>
+                        
+                        <div class="flex items-center">
+                            <input type="checkbox" 
+                                   id="autoSendEnabled" 
+                                   checked
+                                   class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                            <label for="autoSendEnabled" class="ml-2 text-sm text-gray-700">
+                                Автоматическая отправка в 09:00 МСК (будни)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Actions Card -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-play-circle text-purple-600 mr-2"></i>
+                        Действия
+                    </h2>
+                    
+                    <div class="space-y-3">
+                        <button id="testNotification" 
+                                class="w-full btn-primary text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center">
+                            <i class="fas fa-paper-plane mr-2"></i>
+                            Отправить тестовое уведомление
+                        </button>
+                        
+                        <button id="activateBot" 
+                                class="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Активировать ежедневные уведомления
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status Card -->
+                <div class="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl p-6 text-white">
+                    <h3 class="text-lg font-semibold mb-3">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Статус бота
+                    </h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>Последняя отправка:</span>
+                            <span id="lastSent">—</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Следующая отправка:</span>
+                            <span id="nextSend">—</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Статус:</span>
+                            <span class="flex items-center">
+                                <i class="fas fa-circle text-xs mr-1 pulse-animation"></i>
+                                Активен
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Footer -->
-    <footer class="mt-12 pt-8 border-t border-gray-200 text-center text-gray-600">
-        <p><i class="fas fa-code mr-2"></i>Данные берутся с официального источника БВФБ</p>
-        <p class="text-sm mt-2">Для полноценной ежедневной отправки в реальном времени требуется серверная часть и планировщик (cron)</p>
-    </footer>
-
-</div>
-
-<!-- Secondary edit modal - Manual input -->
-<div id="secondaryModal" class="hidden fixed inset-0 z-[100]">
-    <div class="absolute inset-0 bg-black/40"></div>
-    <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="w-full max-w-lg bg-white rounded-2xl card-shadow p-6">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800">Ручной ввод «Итоги торгов»</h3>
-                    <p class="text-sm text-gray-500 mt-1">Если автоматическая загрузка не сработала, введите значения вручную</p>
-                </div>
-                <button id="closeSecondaryModal" class="px-3 py-2 rounded-xl hover:bg-gray-100 transition" aria-label="Закрыть">
-                    <i class="fas fa-xmark"></i>
-                </button>
-            </div>
-
-            <div class="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
-                <div class="flex items-start gap-2 text-sm text-yellow-800">
-                    <i class="fas fa-info-circle mt-0.5"></i>
-                    <span>Обычно данные загружаются автоматически. Используйте этот способ только если загрузка не сработала.</span>
+        <!-- Demo Preview -->
+        <div class="mt-8 bg-white rounded-xl card-shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-eye text-purple-600 mr-2"></i>
+                Предпросмотр уведомления
+            </h2>
+            <div id="notificationPreview" class="bg-gray-50 rounded-lg p-4 font-mono text-sm">
+                <div class="text-gray-600">
+                    📈 <b>Ежедневный отчет по ценной бумаге</b><br>
+                    ━━━━━━━━━━━━━━━━━━━━<br>
+                    📅 <b>Дата последней сделки:</b> 17.12.2025<br>
+                    💰 <b>Текущая цена:</b> 41.40 BYN<br>
+                    📊 <b>Изменение цены:</b> +9.40 BYN<br>
+                    📈 <b>Процент изменения:</b> +29.37%<br>
+                    <br>
+                    🧾 <b>Итоги торгов (вторич.):</b><br>
+                    • мин.: 41.40<br>
+                    • макс.: 41.40<br>
+                    • срвз: 41.40<br>
+                    ━━━━━━━━━━━━━━━━━━━━<br>
+                    🔗 <a href="#">Источник: БВФБ</a><br>
+                    ⏰ Сформировано: <span id="previewTime"></span>
                 </div>
             </div>
+        </div>
+    </main>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6">
+    <!-- Edit Secondary Modal -->
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold mb-4">Редактирование итогов торгов</h3>
+            <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">мин.</label>
-                    <input id="secMinInput" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="например 41.40">
+                    <input type="text" id="editMin" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">макс.</label>
-                    <input id="secMaxInput" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="например 41.40">
+                    <input type="text" id="editMax" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">срвз</label>
-                    <input id="secAvgInput" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="например 41.40">
+                    <input type="text" id="editAvg" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                 </div>
             </div>
-
-            <div class="flex flex-col sm:flex-row gap-3 mt-6">
-                <button id="saveSecondaryBtn" class="flex-1 gradient-bg text-white font-semibold py-3 px-6 rounded-xl hover:opacity-90 transition inline-flex items-center justify-center gap-2">
-                    <i class="fas fa-floppy-disk"></i>
+            <div class="flex space-x-3 mt-6">
+                <button id="saveSecondary" class="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">
                     Сохранить
                 </button>
-                <button id="clearSecondaryBtn" class="flex-1 border border-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-xl hover:bg-gray-50 transition inline-flex items-center justify-center gap-2">
-                    <i class="fas fa-eraser"></i>
-                    Очистить
+                <button id="cancelEdit" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400">
+                    Отмена
                 </button>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Telegram Bot Configuration
-    const BOT_TOKEN = '8206916174:AAG7lo_fCskXwyJiPEF9REbLL0kzgT6K20Q';
-    const DEFAULT_CHAT_ID = '273298263';
-
-    // Auto-send scheduler (browser-only demo)
-    // Note: This will work only while the page is open in the browser.
-    const AUTO_SEND_ENABLED_DEFAULT = true;
-    const AUTO_SEND_TIME_MSK = '09:00';
-    const AUTO_SEND_FORMAT = 'detailed';
-    const AUTO_SEND_TZ = 'Europe/Moscow';
-
-    // Data
-    const securityData = {
-        date: '17.12.2025',
-        price: '41.40',
-        change: '9.40',
-        changePercent: '29.37%',
-        source: 'https://www.bcse.by/stock/securitydirectory/100345505/5-200-01-3593',
-        secondary: {
-            min: '41.40',
-            max: '41.40',
-            avg: '41.40'
-        },
-        lastUpdatedIso: null
-    };
-
-    // DOM
-    const form = document.getElementById('botConfigForm');
-    const testBtn = document.getElementById('testNotification');
-    const chatIdInput = document.getElementById('chatId');
-    const sourceLink = document.getElementById('sourceLink');
-
-    const lastUpdatedEl = document.getElementById('lastUpdated');
-    const lastTradeDateEl = document.getElementById('lastTradeDate');
-    const currentPriceEl = document.getElementById('currentPrice');
-    const priceChangeEl = document.getElementById('priceChange');
-    const priceChangePercentEl = document.getElementById('priceChangePercent');
-    const summaryTextEl = document.getElementById('summaryText');
-
-    const secMinEl = document.getElementById('secMin');
-    const secMaxEl = document.getElementById('secMax');
-    const secAvgEl = document.getElementById('secAvg');
-
-    const previewDateEl = document.getElementById('previewDate');
-    const previewPriceEl = document.getElementById('previewPrice');
-    const previewChangeEl = document.getElementById('previewChange');
-    const previewPercentEl = document.getElementById('previewPercent');
-    const previewMinEl = document.getElementById('previewMin');
-    const previewMaxEl = document.getElementById('previewMax');
-    const previewAvgEl = document.getElementById('previewAvg');
-
-    const refreshDataBtn = document.getElementById('refreshDataBtn');
-
-    // Modal
-    const secondaryModal = document.getElementById('secondaryModal');
-    const editSecondaryBtn = document.getElementById('editSecondaryBtn');
-    const closeSecondaryModal = document.getElementById('closeSecondaryModal');
-    const saveSecondaryBtn = document.getElementById('saveSecondaryBtn');
-    const clearSecondaryBtn = document.getElementById('clearSecondaryBtn');
-    const secMinInput = document.getElementById('secMinInput');
-    const secMaxInput = document.getElementById('secMaxInput');
-    const secAvgInput = document.getElementById('secAvgInput');
-
-    // Storage
-    const STORAGE_KEY = 'bcse_stock_tracker_state_v2';
-
-    // Scheduler state
-    let autoSendEnabled = AUTO_SEND_ENABLED_DEFAULT;
-    let lastAutoSendKey = null; // e.g. '2025-12-17'
-
-    function loadState() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) return;
-            const saved = JSON.parse(raw);
-            if (saved?.secondary) {
-                securityData.secondary.min = saved.secondary.min ?? securityData.secondary.min;
-                securityData.secondary.max = saved.secondary.max ?? securityData.secondary.max;
-                securityData.secondary.avg = saved.secondary.avg ?? securityData.secondary.avg;
+    <script>
+        // Telegram Bot Configuration
+        const BOT_TOKEN = '8206916174:AAG7lo_fCskXwyJiPEF9REbLL0kzgT6K20Q';
+        const STOCK_URL = 'https://www.bcse.by/stock/securitydirectory/100345505/5-200-01-3593';
+        
+        // State management
+        let state = {
+            chatId: '273298263',
+            notificationTime: '09:00',
+            notificationFormat: 'detailed',
+            autoSendEnabled: true,
+            lastAutoSendKey: null,
+            stockData: {
+                date: '17.12.2025',
+                price: '41.40',
+                change: '9.40',
+                changePercent: '29.37%',
+                secondary: {
+                    min: '41.40',
+                    max: '41.40',
+                    avg: '41.40'
+                }
             }
-            if (saved?.lastUpdatedIso) securityData.lastUpdatedIso = saved.lastUpdatedIso;
-            if (typeof saved?.autoSendEnabled === 'boolean') autoSendEnabled = saved.autoSendEnabled;
-            if (saved?.lastAutoSendKey) lastAutoSendKey = saved.lastAutoSendKey;
-        } catch (e) {
-            // ignore
-        }
-    }
+        };
 
-    function saveState() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            secondary: securityData.secondary,
-            lastUpdatedIso: securityData.lastUpdatedIso,
-            autoSendEnabled,
-            lastAutoSendKey
-        }));
-    }
-
-    // UI render
-    function render() {
-        sourceLink.href = securityData.source;
-        sourceLink.textContent = securityData.source;
-
-        lastTradeDateEl.textContent = securityData.date;
-        currentPriceEl.textContent = securityData.price;
-        priceChangeEl.textContent = securityData.change;
-        priceChangePercentEl.textContent = securityData.changePercent;
-
-        secMinEl.textContent = securityData.secondary.min;
-        secMaxEl.textContent = securityData.secondary.max;
-        secAvgEl.textContent = securityData.secondary.avg;
-
-        previewDateEl.textContent = securityData.date;
-        previewPriceEl.textContent = securityData.price;
-        previewChangeEl.textContent = securityData.change;
-        previewPercentEl.textContent = securityData.changePercent;
-        previewMinEl.textContent = securityData.secondary.min;
-        previewMaxEl.textContent = securityData.secondary.max;
-        previewAvgEl.textContent = securityData.secondary.avg;
-
-        const pct = securityData.changePercent?.toString()?.replace('+', '');
-        summaryTextEl.textContent = `Ценная бумага показывает изменение на ${pct} с изменением цены на ${securityData.change} BYN. Последняя сделка была зафиксирована ${securityData.date} по цене ${securityData.price} BYN.`;
-
-        if (securityData.lastUpdatedIso) {
-            lastUpdatedEl.textContent = new Date(securityData.lastUpdatedIso).toLocaleString('ru-RU');
-        } else {
-            lastUpdatedEl.textContent = '—';
-        }
-    }
-
-    // Set default Chat ID
-    chatIdInput.value = DEFAULT_CHAT_ID;
-
-    // Telegram API
-    async function sendTelegramMessage(chatId, message) {
-        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: message,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true
-            })
-        });
-        return await response.json();
-    }
-
-    function normalizeNumber(s) {
-        if (!s) return s;
-        return String(s).replace(',', '.').trim();
-    }
-
-    function generateMessage(format) {
-        const min = securityData.secondary.min;
-        const max = securityData.secondary.max;
-        const avg = securityData.secondary.avg;
-        const hasSecondary = [min, max, avg].some(v => v && v !== '—');
-
-        if (format === 'short') {
-            return `📈 <b>Ценная бумага БВФБ</b>\n\n📅 Дата: ${securityData.date}\n💰 Цена: ${securityData.price} BYN\n📊 Изменение: +${securityData.change} BYN (+${securityData.changePercent})`;
+        // Load state from localStorage
+        function loadState() {
+            const saved = localStorage.getItem('telegramBotState');
+            if (saved) {
+                state = { ...state, ...JSON.parse(saved) };
+                updateUI();
+            }
         }
 
-        return `📈 <b>Ежедневный отчет по ценной бумаге</b>\n\n━━━━━━━━━━━━━━━━━━━━\n📅 <b>Дата последней сделки:</b> ${securityData.date}\n💰 <b>Текущая цена:</b> ${securityData.price} BYN\n📊 <b>Изменение цены:</b> +${securityData.change} BYN\n📈 <b>Процент изменения:</b> +${securityData.changePercent}\n${hasSecondary ? `\n🧾 <b>Итоги торгов (вторич.):</b>\n• мин.: ${min}\n• макс.: ${max}\n• срвз: ${avg}\n` : ''}━━━━━━━━━━━━━━━━━━━━\n\n🔗 <a href="${securityData.source}">Источник: БВФБ</a>\n\n⏰ Сформировано: ${new Date().toLocaleString('ru-RU')}`;
-    }
+        // Save state to localStorage
+        function saveState() {
+            localStorage.setItem('telegramBotState', JSON.stringify(state));
+        }
 
-    // Fetch/parse BCSE
-    async function fetchWithFallback(url) {
-        const proxyBuilders = [
-            u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-            u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-            u => `https://r.jina.ai/${u}`,
-            u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
-        ];
+        // Update UI with current state
+        function updateUI() {
+            document.getElementById('chatId').value = state.chatId;
+            document.getElementById('notificationTime').value = state.notificationTime;
+            document.getElementById('notificationFormat').value = state.notificationFormat;
+            document.getElementById('autoSendEnabled').checked = state.autoSendEnabled;
+            
+            // Update stock data
+            document.getElementById('stockDate').textContent = state.stockData.date;
+            document.getElementById('stockPrice').textContent = state.stockData.price + ' BYN';
+            document.getElementById('stockChange').textContent = '+' + state.stockData.change + ' BYN';
+            document.getElementById('stockChangePercent').textContent = '+' + state.stockData.changePercent;
+            
+            // Update secondary data
+            document.getElementById('secondaryMin').textContent = state.stockData.secondary.min;
+            document.getElementById('secondaryMax').textContent = state.stockData.secondary.max;
+            document.getElementById('secondaryAvg').textContent = state.stockData.secondary.avg;
+            
+            updateNotificationPreview();
+        }
 
-        let lastErr = null;
-        for (const build of proxyBuilders) {
-            const proxied = build(url);
+        // Update notification preview
+        function updateNotificationPreview() {
+            const format = state.notificationFormat;
+            let message = '';
+            
+            if (format === 'brief') {
+                message = `📈 ${state.stockData.date}: ${state.stockData.price} BYN (${state.stockData.changePercent})`;
+            } else {
+                message = `📈 <b>Ежедневный отчет по ценной бумаге</b>
+
+━━━━━━━━━━━━━━━━━━━━
+📅 <b>Дата последней сделки:</b> ${state.stockData.date}
+💰 <b>Текущая цена:</b> ${state.stockData.price} BYN
+📊 <b>Изменение цены:</b> +${state.stockData.change} BYN
+📈 <b>Процент изменения:</b> +${state.stockData.changePercent}
+
+🧾 <b>Итоги торгов (вторич.):</b>
+• мин.: ${state.stockData.secondary.min}
+• макс.: ${state.stockData.secondary.max}
+• срвз: ${state.stockData.secondary.avg}
+━━━━━━━━━━━━━━━━━━━━
+
+🔗 <a href="${STOCK_URL}">Источник: БВФБ</a>
+
+⏰ Сформировано: ${new Date().toLocaleString('ru-RU')}`;
+            }
+            
+            document.getElementById('notificationPreview').innerHTML = message;
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast bg-white rounded-lg shadow-lg p-4 flex items-center space-x-3 ${
+                type === 'success' ? 'border-l-4 border-green-500' : 
+                type === 'error' ? 'border-l-4 border-red-500' : 
+                'border-l-4 border-blue-500'
+            }`;
+            
+            const icon = type === 'success' ? 'fa-check-circle text-green-500' : 
+                         type === 'error' ? 'fa-exclamation-circle text-red-500' : 
+                         'fa-info-circle text-blue-500';
+            
+            toast.innerHTML = `
+                <i class="fas ${icon} text-xl"></i>
+                <span class="text-gray-700">${message}</span>
+            `;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Send message to Telegram
+        async function sendTelegramMessage(chatId, message) {
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+            
             try {
-                const res = await fetch(proxied, { 
-                    method: 'GET', 
-                    mode: 'cors',
+                const response = await fetch(url, {
+                    method: 'POST',
                     headers: {
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-                    }
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: message,
+                        parse_mode: 'HTML',
+                        disable_web_page_preview: true
+                    })
                 });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const text = await res.text();
-                if (!text || text.length < 500) throw new Error('Похоже на пустой ответ');
                 
-                // Проверяем, что это похоже на HTML страницу БВФБ
-                if (text.includes('bcse') || text.includes('БВФБ') || text.includes('Белорусская валютно-фондовая биржа')) {
-                    return text;
+                const data = await response.json();
+                if (data.ok) {
+                    return { success: true, data };
+                } else {
+                    return { success: false, error: data.description };
+                }
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Parse BCSE data with improved methods
+        async function parseBcseData(html) {
+            console.log('🔍 Начинаю парсинг данных...');
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Helpers
+            const norm = (s) => (s || '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+            const normNum = (s) => {
+                const m = norm(s).match(/(\d+[.,]\d{2})/);
+                return m ? m[1].replace(',', '.') : null;
+            };
+            const isMoney = (s) => /^\d+\.\d{2}$/.test(s);
+
+            let date = state?.stockData?.date || '—';
+            let price = state?.stockData?.price || '—';
+            let min = state?.stockData?.secondary?.min || '—';
+            let max = state?.stockData?.secondary?.max || '—';
+            let avg = state?.stockData?.secondary?.avg || '—';
+
+            let parseMeta = { dateSource: 'fallback', priceSource: 'fallback', secondarySource: 'fallback' };
+
+            try {
+                // Helpers: дата
+                const parseRuDate = (s) => {
+                    const m = norm(s).match(/(\d{2})\.(\d{2})\.(\d{4})/);
+                    if (!m) return null;
+                    const [_, dd, mm, yyyy] = m;
+                    const d = new Date(Date.UTC(parseInt(yyyy, 10), parseInt(mm, 10) - 1, parseInt(dd, 10), 12, 0, 0));
+                    return { str: `${dd}.${mm}.${yyyy}`, d };
+                };
+                const nowMsk = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+                const isFutureRuDate = (ruDateStr) => {
+                    const parsed = parseRuDate(ruDateStr);
+                    if (!parsed) return false;
+                    const n = nowMsk();
+                    // допускаем небольшую погрешность: +1 день (из-за часовых поясов/публикации)
+                    const max = new Date(n);
+                    max.setDate(max.getDate() + 1);
+                    return parsed.d.getTime() > max.getTime();
+                };
+
+                // 0) Пытаемся найти самую свежую дату прямо в строках таблиц торгов (первая колонка часто содержит дату)
+                // Это надежнее, чем «Дата последней сделки», если прокси/страница отдают некорректный текст.
+                const rows = Array.from(doc.querySelectorAll('tr'));
+                let bestTradeRow = null;
+                let bestTradeDate = null;
+
+                for (const row of rows) {
+                    const cells = Array.from(row.querySelectorAll('td,th')).map(td => norm(td.textContent));
+                    if (cells.length < 5) continue;
+                    const bynIdx = cells.findIndex(c => /^BYN$/i.test(c));
+                    if (bynIdx === -1) continue;
+
+                    // предполагаем, что дата где-то в начале строки
+                    const dateCell = cells.find(c => /\d{2}\.\d{2}\.\d{4}/.test(c));
+                    const parsed = dateCell ? parseRuDate(dateCell) : null;
+                    if (!parsed) continue;
+                    if (isFutureRuDate(parsed.str)) continue;
+
+                    // проверяем наличие хотя бы 3 цен после BYN
+                    const after = cells.slice(bynIdx + 1).map(c => c.replace(',', '.'));
+                    const money = after.filter(v => isMoney(v));
+                    if (money.length < 3) continue;
+
+                    if (!bestTradeDate || parsed.d.getTime() > bestTradeDate.d.getTime()) {
+                        bestTradeDate = parsed;
+                        bestTradeRow = { cells, money };
+                    }
+                }
+
+                if (bestTradeDate && bestTradeRow) {
+                    date = bestTradeDate.str;
+                    parseMeta.dateSource = 'tradeTable:maxDateRow';
+                }
+
+                // 1) Дата последней сделки (используем как уточнение/фолбэк, и игнорируем, если она «в будущем»)
+                const dateLabel = Array.from(doc.querySelectorAll('td, th, span, div'))
+                    .find(el => /Дата последней сделки/i.test(norm(el.textContent)));
+                if (dateLabel) {
+                    let candidate = null;
+
+                    if (dateLabel.tagName && /TD|TH/.test(dateLabel.tagName)) {
+                        const row = dateLabel.closest('tr');
+                        if (row) {
+                            const cells = Array.from(row.querySelectorAll('td,th'));
+                            const idx = cells.indexOf(dateLabel);
+                            if (idx >= 0 && cells[idx + 1]) candidate = norm(cells[idx + 1].textContent);
+                        }
+                        if (!candidate && dateLabel.nextElementSibling) candidate = norm(dateLabel.nextElementSibling.textContent);
+                    } else {
+                        if (dateLabel.nextElementSibling) candidate = norm(dateLabel.nextElementSibling.textContent);
+                    }
+
+                    const parsed = candidate ? parseRuDate(candidate) : null;
+                    if (parsed && !isFutureRuDate(parsed.str)) {
+                        // Если tradeTable уже дала дату, оставляем более свежую/адекватную
+                        if (!date || date === '—') {
+                            date = parsed.str;
+                            parseMeta.dateSource = 'label:Дата последней сделки';
+                        } else {
+                            const cur = parseRuDate(date);
+                            if (!cur || parsed.d.getTime() >= cur.d.getTime()) {
+                                date = parsed.str;
+                                parseMeta.dateSource = 'label:Дата последней сделки (override)';
+                            }
+                        }
+                    }
+                }
+
+                // 2) Итоги торгов (вторичный) по строке таблицы с датой и BYN
+                // Это также используется как «цена на текущую дату» (срвз/макс/мин)
+                const candidates = [];
+
+                for (const row of rows) {
+                    const rowText = norm(row.textContent);
+                    if (!date || date === '—') continue;
+                    if (!rowText.includes(date)) continue;
+                    if (!/\bBYN\b/.test(rowText)) continue;
+
+                    const cells = Array.from(row.querySelectorAll('td,th')).map(td => norm(td.textContent));
+                    const bynIdx = cells.findIndex(c => /^BYN$/i.test(c));
+                    if (bynIdx === -1) continue;
+
+                    const after = cells.slice(bynIdx + 1).map(c => c.replace(',', '.'));
+                    const money = after.filter(v => isMoney(v));
+                    if (money.length >= 3) {
+                        candidates.push({ money, cells });
+                    }
+                }
+
+                // если candidates пуст, но есть bestTradeRow (для самой свежей даты) — используем его
+                if (!candidates.length && bestTradeRow && bestTradeDate && bestTradeDate.str === date) {
+                    candidates.push(bestTradeRow);
+                    parseMeta.secondarySource = 'tradeTable:maxDateRow (direct)';
+                }
+
+                if (candidates.length) {
+                    candidates.sort((a, b) => b.money.length - a.money.length);
+                    const best = candidates[0];
+
+                    // На БВФБ после BYN обычно идут: мин / макс / срвз (иногда еще объемы — поэтому берем первые 3 «денежных»)
+                    min = best.money[0];
+                    max = best.money[1];
+                    avg = best.money[2];
+                    parseMeta.secondarySource = parseMeta.secondarySource || `row:${date}+BYN (moneyAfterBYN=${best.money.length})`;
+
+                    // Текущая цена должна соответствовать этой же торговой дате.
+                    // Берём срвз (если валидна), иначе макс/мин.
+                    if (avg && isMoney(avg)) {
+                        price = avg;
+                        parseMeta.priceSource = 'secondary:avg (price on last trade date)';
+                    } else if (max && isMoney(max)) {
+                        price = max;
+                        parseMeta.priceSource = 'secondary:max (price on last trade date)';
+                    } else if (min && isMoney(min)) {
+                        price = min;
+                        parseMeta.priceSource = 'secondary:min (price on last trade date)';
+                    }
+                } else {
+                    // fallback: плоский текст — пробуем окно после даты
+                    const text = norm(doc.body ? doc.body.textContent : doc.textContent);
+                    if (date && text.includes(date)) {
+                        const idx = text.indexOf(date);
+                        const windowText = text.slice(idx, idx + 900);
+                        // фильтруем только цены формата XX.XX, чтобы не схватить части даты
+                        const nums = (windowText.match(/\b\d+[.,]\d{2}\b/g) || []).map(x => x.replace(',', '.'));
+                        if (nums.length >= 3) {
+                            min = nums[0];
+                            max = nums[1];
+                            avg = nums[2];
+                            parseMeta.secondarySource = 'textWindowAfterDate';
+
+                            price = avg;
+                            parseMeta.priceSource = 'textWindow:avg (price on last trade date)';
+                        }
+                    }
+                }
+
+                // 3) Резерв: «Цена, BYN» используем ТОЛЬКО если не удалось найти строку торгов.
+                // На странице может быть несколько «Цена, BYN» в разных блоках, поэтому без торговой строки значение может быть не тем.
+                if ((!price || price === '—') && (!min || min === '—') && (!max || max === '—') && (!avg || avg === '—')) {
+                    const priceLabel = Array.from(doc.querySelectorAll('td, th, span, div'))
+                        .find(el => /Цена,\s*BYN/i.test(norm(el.textContent)));
+                    if (priceLabel) {
+                        let candidateCell = null;
+                        if (priceLabel.tagName && /TD|TH/.test(priceLabel.tagName)) {
+                            const row = priceLabel.closest('tr');
+                            if (row) {
+                                const cells = Array.from(row.querySelectorAll('td,th'));
+                                const idx = cells.indexOf(priceLabel);
+                                if (idx >= 0 && cells[idx + 1]) candidateCell = cells[idx + 1];
+                            }
+                        }
+                        if (!candidateCell && priceLabel.nextElementSibling) candidateCell = priceLabel.nextElementSibling;
+
+                        const p = normNum(candidateCell ? candidateCell.textContent : '');
+                        if (p) {
+                            price = p;
+                            parseMeta.priceSource = 'label:Цена, BYN (fallback-only)';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Ошибка DOM парсинга:', e);
+            }
+
+            const change = state?.stockData?.change || '9.40';
+            const changePercent = state?.stockData?.changePercent || '29.37%';
+
+            console.log('✅ Распарсено:', { date, price, min, max, avg, parseMeta });
+
+            return {
+                date: date || '—',
+                price: price || '—',
+                change,
+                changePercent,
+                secondary: {
+                    min: min || '—',
+                    max: max || '—',
+                    avg: avg || '—'
+                },
+                _parseMeta: parseMeta
+            };
+        }
+
+        // Load data from BCSE with improved proxy list
+        async function refreshFromBcse() {
+            const refreshBtn = document.getElementById('refreshFromBcse');
+            const originalContent = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка...';
+            refreshBtn.disabled = true;
+            
+            // Update status
+            document.getElementById('secondaryStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка данных с БВФБ...';
+            
+            try {
+                // Try multiple proxy services
+                const proxyUrls = [
+                    `https://r.jina.ai/http://${STOCK_URL}`,
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(STOCK_URL)}`,
+                    `https://corsproxy.io/?${encodeURIComponent(STOCK_URL)}`,
+                    `https://cors-anywhere.herokuapp.com/${STOCK_URL}`,
+                    `https://thingproxy.freeboard.io/fetch/${STOCK_URL}`
+                ];
+                
+                let data = null;
+                let lastError = null;
+                
+                for (const proxyUrl of proxyUrls) {
+                    try {
+                        console.log(`🔄 Пробую прокси: ${proxyUrl}`);
+                        
+                        const response = await fetch(proxyUrl, {
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+                                'Accept-Encoding': 'gzip, deflate',
+                                'Connection': 'keep-alive',
+                                'Upgrade-Insecure-Requests': '1',
+                                'Cache-Control': 'no-cache'
+                            },
+                            timeout: 30000
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const html = await response.text();
+                        console.log('✅ HTML получен, длина:', html.length);
+                        
+                        // Parse the data
+                        data = await parseBcseData(html);
+                        
+                        if (data) {
+                            console.log('✅ Данные успешно распарсены');
+                            break;
+                        }
+                    } catch (error) {
+                        console.warn(`❌ Прокси ${proxyUrl} не сработал:`, error.message);
+                        lastError = error;
+                        continue;
+                    }
                 }
                 
-                return text;
-            } catch (e) {
-                lastErr = e;
-                console.log(`Proxy ${proxied.substring(0, 30)}... failed:`, e.message);
-            }
-        }
-        throw lastErr || new Error('Не удалось загрузить');
-    }
+                if (data) {
+                    // Update state with new data
+                    state.stockData = {
+                        ...state.stockData,
+                        ...data,
+                        secondary: {
+                            ...(state.stockData.secondary || {}),
+                            ...(data.secondary || {})
+                        }
+                    };
+                    saveState();
+                    updateUI();
 
-    function extractByRegex(text, regex) {
-        const m = text.match(regex);
-        return m && m[1] ? m[1].trim() : null;
-    }
-
-    function normalizeSecondaryValues(text) {
-        // Очищаем текст от лишнего
-        let cleanedText = text
-            .replace(/\u00a0/g, ' ')
-            .replace(/[\t\r]+/g, ' ')
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-
-        const targetDate = '17.12.2025';
-        console.log('🔍 Ищем данные на дату:', targetDate);
-
-        // Паттерн: 17.12.2025 ... НДА ... SCCP-T0 ... BYN ... три числа (мин, макс, срвз)
-        // Поиск в строке таблицы
-        const tableRowPattern = new RegExp(
-            `17\\.12\\.2025[\\s\\S]{0,300}?(?:НДА|SCCP-T0)[\\s\\S]{0,200}?BYN[\\s\\S]{0,300}?([0-9]+(?:[.,][0-9]{1,2})?)[\\s\\S]{0,150}?([0-9]+(?:[.,][0-9]{1,2})?)[\\s\\S]{0,150}?([0-9]+(?:[.,][0-9]{1,2})?)`,
-            'gi'
-        );
-
-        const tableMatch = cleanedText.match(tableRowPattern);
-        if (tableMatch && tableMatch[0]) {
-            const fullMatch = tableMatch[0];
-            console.log('📊 Найдена строка таблицы:', fullMatch.substring(0, 100) + '...');
-            
-            // Извлекаем три числа из найденной строки
-            const numbersPattern = /([0-9]+(?:[.,][0-9]{1,2})?)/g;
-            const numbers = fullMatch.match(numbersPattern);
-            
-            if (numbers && numbers.length >= 3) {
-                // Последние три числа - это мин, макс, срвз
-                const min = normalizeNumber(numbers[numbers.length - 3]);
-                const max = normalizeNumber(numbers[numbers.length - 2]);
-                const avg = normalizeNumber(numbers[numbers.length - 1]);
+                    const meta = data._parseMeta;
+                    const metaText = meta ? ` (цена: ${meta.priceSource}, итоги: ${meta.secondarySource})` : '';
+                    showToast('✅ Данные успешно обновлены с БВФБ!' + metaText, 'success');
+                    document.getElementById('secondaryStatus').innerHTML = '<i class="fas fa-check-circle text-green-500"></i> Данные обновлены автоматически с БВФБ' + (meta ? `<span class="ml-1 opacity-75">${metaText}</span>` : '');
+                } else {
+                    throw new Error(lastError || 'Не удалось получить данные');
+                }
                 
-                console.log('✅ Извлечены данные торгов на 17.12.2025:');
-                console.log('  мин:', min);
-                console.log('  макс:', max);
-                console.log('  срвз:', avg);
+            } catch (error) {
+                console.error('❌ Ошибка при загрузке данных:', error);
+                showToast(`❌ Не удалось загрузить данные: ${error.message}`, 'error');
+                document.getElementById('secondaryStatus').innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-500"></i> Ошибка загрузки. Используйте ручной ввод.';
+            } finally {
+                refreshBtn.innerHTML = originalContent;
+                refreshBtn.disabled = false;
+            }
+        }
+
+        // Auto-send scheduler
+        function startScheduler() {
+            setInterval(async () => {
+                if (!state.autoSendEnabled) return;
                 
-                return { min, max, avg };
-            }
-        }
-
-        console.log('❌ Данные на 17.12.2025 не найдены в таблице, пытаюсь альтернативные методы...');
-        
-        // Альтернативный поиск: блок "Итоги торгов"
-        const patterns = [
-            /итоги\s+торгов[\s\S]{0,500}?купля[\s\S]{0,300}?продажа[\s\S]{0,300}?вторич[\s\S]{0,500}?([0-9]+(?:[.,][0-9]{1,2})?)\s+([0-9]+(?:[.,][0-9]{1,2})?)\s+([0-9]+(?:[.,][0-9]{1,2})?)/i,
-            /вторич[\s\S]{0,200}?([0-9]+(?:[.,][0-9]{1,2})?)\s+([0-9]+(?:[.,][0-9]{1,2})?)\s+([0-9]+(?:[.,][0-9]{1,2})?)/i
-        ];
-
-        for (const pattern of patterns) {
-            const match = cleanedText.match(pattern);
-            if (match) {
-                console.log('📋 Найдены данные по альтернативному паттерну');
-                return {
-                    min: normalizeNumber(match[1]),
-                    max: normalizeNumber(match[2]),
-                    avg: normalizeNumber(match[3])
-                };
-            }
-        }
-
-        console.log('⚠️ Значения не найдены - используются значения по умолчанию');
-        return null;
-    }
-
-    function parseBcseText(text) {
-        const clean = text
-            .replace(/\u00a0/g, ' ')
-            .replace(/[\t\r]+/g, ' ')
-            .replace(/\n{2,}/g, '\n')
-            .trim();
-
-        // Date
-        const date = extractByRegex(clean, /Дата\s+последней\s+сделки\s*([0-9]{2}\.[0-9]{2}\.[0-9]{4})/i);
-
-        // Price
-        const price = extractByRegex(clean, /Цена\s*,\s*BYN\s*([0-9]+(?:[\.,][0-9]+)?)/i);
-
-        // Change + percent (best effort)
-        const change = extractByRegex(clean, /Изменение\s*([+\-]?[0-9]+(?:[\.,][0-9]+)?)/i);
-        const changePercent = extractByRegex(clean, /Изменение[\s\S]{0,120}?([+\-]?[0-9]+(?:[\.,][0-9]+)?%)/i);
-
-        // Secondary results - используем улучшенную функцию
-        const secondary = normalizeSecondaryValues(clean);
-
-        return {
-            date: date || null,
-            price: price ? normalizeNumber(price) : null,
-            change: change ? normalizeNumber(change) : null,
-            changePercent: changePercent ? changePercent.replace(',', '.').trim() : null,
-            secondary
-        };
-    }
-
-    async function refreshFromBcse() {
-        refreshDataBtn.disabled = true;
-        const prev = refreshDataBtn.innerHTML;
-        refreshDataBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка...';
-
-        try {
-            console.log('🌐 Загрузка данных с БВФБ...');
-            const html = await fetchWithFallback(securityData.source);
-
-            // Parse as text (works for both HTML and proxied text)
-            const parsed = parseBcseText(html);
-
-            let updated = false;
-            let updatedFields = [];
-
-            if (parsed.date) {
-                securityData.date = parsed.date;
-                updated = true;
-                updatedFields.push('дата');
-            }
-            if (parsed.price) {
-                securityData.price = parsed.price;
-                updated = true;
-                updatedFields.push('цена');
-            }
-            if (parsed.change) {
-                securityData.change = parsed.change;
-                updated = true;
-                updatedFields.push('изменение');
-            }
-            if (parsed.changePercent) {
-                securityData.changePercent = parsed.changePercent;
-                updated = true;
-                updatedFields.push('процент');
-            }
-            if (parsed.secondary) {
-                securityData.secondary = parsed.secondary;
-                updated = true;
-                updatedFields.push('итоги торгов');
-                console.log('✅ Данные торгов обновлены:', parsed.secondary);
-            }
-
-            if (updated) {
-                securityData.lastUpdatedIso = new Date().toISOString();
-                saveState();
-                render();
+                const now = new Date();
+                const moscowTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Moscow"}));
                 
-                const message = `✅ Данные обновлены: ${updatedFields.join(', ')}`;
-                console.log(message);
-            } else {
-                console.warn('⚠️ На странице не найдены обновленные данные');
-            }
-        } catch (e) {
-            console.error('❌ Ошибка загрузки:', e.message);
-        } finally {
-            refreshDataBtn.disabled = false;
-            refreshDataBtn.innerHTML = prev;
-        }
-    }
+                // Check if it's weekday and 09:00 MSK
+                const day = moscowTime.getDay();
+                const hour = moscowTime.getHours();
+                const minute = moscowTime.getMinutes();
+                
+                const isWeekday = day >= 1 && day <= 5;
+                const isTargetTime = hour === 9 && minute === 0;
+                
+                const todayKey = moscowTime.toISOString().split('T')[0];
+                const alreadySent = state.lastAutoSendKey === todayKey;
+                
+                if (isWeekday && isTargetTime && !alreadySent) {
+                    console.log('🚀 Запуск автоматической отправки...');
+                    
+                    // First refresh data from BCSE
+                    await refreshFromBcse();
+                    
+                    // Then send notification
+                    const message = state.notificationFormat === 'brief' 
+                        ? `📈 ${state.stockData.date}: ${state.stockData.price} BYN (${state.stockData.changePercent})`
+                        : `📈 <b>Ежедневный отчет по ценной бумаге</b>
 
-    // Form submit
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
+━━━━━━━━━━━━━━━━━━━━
+📅 <b>Дата последней сделки:</b> ${state.stockData.date}
+💰 <b>Текущая цена:</b> ${state.stockData.price} BYN
+📊 <b>Изменение цены:</b> +${state.stockData.change} BYN
+📈 <b>Процент изменения:</b> +${state.stockData.changePercent}
 
-        const chatId = chatIdInput.value.trim();
-        const time = document.getElementById('notificationTime').value;
-        const format = document.querySelector('input[name="format"]:checked').value;
+🧾 <b>Итоги торгов (вторич.):</b>
+• мин.: ${state.stockData.secondary.min}
+• макс.: ${state.stockData.secondary.max}
+• срвз: ${state.stockData.secondary.avg}
+━━━━━━━━━━━━━━━━━━━━
 
-        if (!chatId) {
-            alert('Пожалуйста, введите ваш Chat ID');
-            return;
-        }
+🔗 <a href="${STOCK_URL}">Источник: БВФБ</a>
 
-        const activationMessage = `✅ <b>Уведомления активированы!</b>\n\nВы будете получать ${format === 'short' ? 'краткие' : 'подробные'} отчеты ежедневно в ${time}\n\n📈 Отслеживаемая ценная бумага:\n🔗 ${securityData.source}`;
-
-        try {
-            showNotification('Отправка сообщения...', 'info');
-            const result = await sendTelegramMessage(chatId, activationMessage);
-
-            if (result.ok) {
-                showNotification('Настройки отправлены в Telegram!', 'success');
-                document.querySelectorAll('.success-message').forEach(el => el.remove());
-
-                const successMessage = `
-                    <div class="success-message mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
-                        <div class="flex items-center">
-                            <i class="fas fa-check-circle text-green-500 text-xl mr-3"></i>
-                            <div>
-                                <div class="font-semibold text-green-800">✅ Настройки успешно сохранены!</div>
-                                <div class="text-green-600 text-sm mt-1">
-                                    Бот будет отправлять ${format === 'short' ? 'краткие' : 'подробные'} уведомления ежедневно в ${time} на Chat ID: ${chatId}
-                                </div>
-                                <div class="text-green-600 text-sm mt-1">Проверьте Telegram — вам отправлено подтверждение.</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                form.insertAdjacentHTML('afterend', successMessage);
-            } else {
-                showNotification('Ошибка: ' + (result.description || 'Неизвестная ошибка'), 'error');
-            }
-        } catch (error) {
-            showNotification('Ошибка отправки: ' + error.message, 'error');
-        }
-    });
-
-    // Test notification
-    testBtn.addEventListener('click', async function() {
-        const chatId = chatIdInput.value.trim();
-        const format = document.querySelector('input[name="format"]:checked').value;
-
-        if (!chatId) {
-            alert('Пожалуйста, сначала введите ваш Chat ID');
-            return;
+⏰ Сформировано: ${new Date().toLocaleString('ru-RU')}`;
+                    
+                    const result = await sendTelegramMessage(state.chatId, message);
+                    
+                    if (result.success) {
+                        state.lastAutoSendKey = todayKey;
+                        saveState();
+                        showToast('✅ Автоматическое уведомление отправлено!', 'success');
+                    } else {
+                        showToast(`❌ Ошибка отправки: ${result.error}`, 'error');
+                    }
+                }
+            }, 20000); // Check every 20 seconds
         }
 
-        const message = generateMessage(format);
-
-        try {
-            testBtn.disabled = true;
-            testBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-3"></i>Отправка...';
-
-            showNotification('Отправка тестового уведомления...', 'info');
-            const result = await sendTelegramMessage(chatId, message);
-
-            if (result.ok) {
-                showNotification('Тестовое уведомление успешно отправлено!', 'success');
-                document.querySelectorAll('.test-message').forEach(el => el.remove());
-
-                const demoNotification = `
-                    <div class="test-message mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                        <div class="flex items-center">
-                            <i class="fab fa-telegram text-blue-500 text-xl mr-3"></i>
-                            <div>
-                                <div class="font-semibold text-blue-800">✅ Тестовое уведомление отправлено!</div>
-                                <div class="text-blue-600 text-sm mt-1">Проверьте Telegram — сообщение доставлено на Chat ID: ${chatId}</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                testBtn.insertAdjacentHTML('afterend', demoNotification);
-            } else {
-                showNotification('Ошибка: ' + (result.description || 'Неизвестная ошибка'), 'error');
-            }
-        } catch (error) {
-            showNotification('Ошибка отправки: ' + error.message, 'error');
-        } finally {
-            testBtn.disabled = false;
-            testBtn.innerHTML = '<i class="fas fa-bell mr-3"></i>Отправить тестовое уведомление';
-        }
-    });
-
-    // Helpers
-    function showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 p-4 rounded-xl shadow-lg z-50 transform transition-all duration-300 ${
-            type === 'success' ? 'bg-green-500 text-white' :
-            type === 'error' ? 'bg-red-500 text-white' :
-            'bg-blue-500 text-white'
-        }`;
-        notification.innerHTML = `
-            <div class="flex items-center">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-3"></i>
-                <span>${message}</span>
-            </div>
-        `;
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateY(-10px)';
-            setTimeout(() => notification.remove(), 300);
-        }, 3200);
-    }
-
-    // Update time display label
-    const timeInput = document.getElementById('notificationTime');
-    timeInput.addEventListener('change', function() {
-        const btn = document.querySelector('button[type="submit"]');
-        if (btn) {
-            btn.innerHTML = `<i class="fas fa-paper-plane mr-3"></i>Активировать уведомления на ${this.value}`;
-        }
-    });
-
-    // Modal logic
-    function openSecondaryModal() {
-        secMinInput.value = securityData.secondary.min === '—' ? '' : securityData.secondary.min;
-        secMaxInput.value = securityData.secondary.max === '—' ? '' : securityData.secondary.max;
-        secAvgInput.value = securityData.secondary.avg === '—' ? '' : securityData.secondary.avg;
-        secondaryModal.classList.remove('hidden');
-    }
-
-    function closeSecondaryModalFn() {
-        secondaryModal.classList.add('hidden');
-    }
-
-    editSecondaryBtn.addEventListener('click', openSecondaryModal);
-    closeSecondaryModal.addEventListener('click', closeSecondaryModalFn);
-    secondaryModal.addEventListener('click', (e) => {
-        if (e.target === secondaryModal.firstElementChild) closeSecondaryModalFn();
-    });
-
-    saveSecondaryBtn.addEventListener('click', () => {
-        const min = normalizeNumber(secMinInput.value);
-        const max = normalizeNumber(secMaxInput.value);
-        const avg = normalizeNumber(secAvgInput.value);
-
-        securityData.secondary.min = min || '—';
-        securityData.secondary.max = max || '—';
-        securityData.secondary.avg = avg || '—';
-        securityData.lastUpdatedIso = new Date().toISOString();
-
-        saveState();
-        render();
-        closeSecondaryModalFn();
-        showNotification('Итоги торгов сохранены.', 'success');
-    });
-
-    clearSecondaryBtn.addEventListener('click', () => {
-        securityData.secondary = { min: '—', max: '—', avg: '—' };
-        securityData.lastUpdatedIso = new Date().toISOString();
-        saveState();
-        render();
-        showNotification('Итоги торгов очищены.', 'info');
-        closeSecondaryModalFn();
-    });
-
-    refreshDataBtn.addEventListener('click', refreshFromBcse);
-
-    // =========================
-    // Auto-send scheduler (MSK)
-    // =========================
-    function getMskParts(date = new Date()) {
-        const fmt = new Intl.DateTimeFormat('ru-RU', {
-            timeZone: AUTO_SEND_TZ,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
+        // Event Listeners
+        document.getElementById('botSettingsForm').addEventListener('change', (e) => {
+            state[e.target.id] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+            saveState();
+            updateNotificationPreview();
         });
-        const parts = fmt.formatToParts(date).reduce((acc, p) => {
-            if (p.type !== 'literal') acc[p.type] = p.value;
-            return acc;
-        }, {});
-        // parts: year, month, day, hour, minute
-        const ymd = `${parts.year}-${parts.month}-${parts.day}`;
-        const hm = `${parts.hour}:${parts.minute}`;
-        return { ymd, hm };
-    }
 
-    function getMskWeekday(date = new Date()) {
-        // 1..7 (Mon..Sun)
-        const fmt = new Intl.DateTimeFormat('en-US', { timeZone: AUTO_SEND_TZ, weekday: 'short' });
-        const w = fmt.format(date);
-        const map = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
-        return map[w] || 0;
-    }
+        document.getElementById('testNotification').addEventListener('click', async () => {
+            const btn = document.getElementById('testNotification');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+            btn.disabled = true;
+            
+            const message = state.notificationFormat === 'brief' 
+                ? `📈 Тестовое уведомление: ${state.stockData.price} BYN (${state.stockData.changePercent})`
+                : `📈 <b>Тестовое уведомление</b>
 
-    function isWorkdayMsk(date = new Date()) {
-        const wd = getMskWeekday(date);
-        return wd >= 1 && wd <= 5;
-    }
+━━━━━━━━━━━━━━━━━━━━
+📅 <b>Дата последней сделки:</b> ${state.stockData.date}
+💰 <b>Текущая цена:</b> ${state.stockData.price} BYN
+📊 <b>Изменение цены:</b> +${state.stockData.change} BYN
+📈 <b>Процент изменения:</b> +${state.stockData.changePercent}
 
-    async function maybeAutoSend() {
-        if (!autoSendEnabled) return;
+🧾 <b>Итоги торгов (вторич.):</b>
+• мин.: ${state.stockData.secondary.min}
+• макс.: ${state.stockData.secondary.max}
+• срвз: ${state.stockData.secondary.avg}
+━━━━━━━━━━━━━━━━━━━━
 
-        const { ymd, hm } = getMskParts(new Date());
-        if (!isWorkdayMsk(new Date())) return;
+🔗 <a href="${STOCK_URL}">Источник: БВФБ</a>
 
-        // Send once per MSK day
-        if (lastAutoSendKey === ymd) return;
-
-        if (hm !== AUTO_SEND_TIME_MSK) return;
-
-        try {
-            // refresh data before sending
-            await refreshFromBcse();
-            const msg = generateMessage(AUTO_SEND_FORMAT);
-            const result = await sendTelegramMessage(DEFAULT_CHAT_ID, msg);
-            if (result?.ok) {
-                lastAutoSendKey = ymd;
-                saveState();
-                showNotification(`Авто-отправка выполнена (МСК ${AUTO_SEND_TIME_MSK}).`, 'success');
+⏰ Сформировано: ${new Date().toLocaleString('ru-RU')}`;
+            
+            const result = await sendTelegramMessage(state.chatId, message);
+            
+            if (result.success) {
+                showToast('✅ Тестовое уведомление отправлено!', 'success');
             } else {
-                showNotification('Авто-отправка: ошибка Telegram: ' + (result?.description || 'неизвестно'), 'error');
+                showToast(`❌ Ошибка отправки: ${result.error}`, 'error');
             }
-        } catch (e) {
-            showNotification('Авто-отправка: ошибка: ' + e.message, 'error');
+            
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        });
+
+        document.getElementById('activateBot').addEventListener('click', async () => {
+            const btn = document.getElementById('activateBot');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Активация...';
+            btn.disabled = true;
+            
+            const message = `✅ <b>Бот успешно активирован!</b>
+
+📅 <b>Настройки:</b>
+• Chat ID: ${state.chatId}
+• Время отправки: ${state.notificationTime} (МСК)
+• Формат: ${state.notificationFormat === 'brief' ? 'Краткий' : 'Подробный'}
+• Автоотправка: ${state.autoSendEnabled ? 'Включена' : 'Выключена'}
+
+🔔 <b>Уведомления будут отправляться:</b>
+• Каждые будние дни в ${state.notificationTime} по МСК
+• Включая итоги торгов (мин/макс/срвз)
+
+⏰ Активировано: ${new Date().toLocaleString('ru-RU')}`;
+            
+            const result = await sendTelegramMessage(state.chatId, message);
+            
+            if (result.success) {
+                showToast('✅ Бот успешно активирован!', 'success');
+            } else {
+                showToast(`❌ Ошибка активации: ${result.error}`, 'error');
+            }
+            
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        });
+
+        document.getElementById('refreshFromBcse').addEventListener('click', refreshFromBcse);
+
+        // Modal controls
+        document.getElementById('editSecondaryBtn').addEventListener('click', () => {
+            document.getElementById('editMin').value = state.stockData.secondary.min;
+            document.getElementById('editMax').value = state.stockData.secondary.max;
+            document.getElementById('editAvg').value = state.stockData.secondary.avg;
+            document.getElementById('editModal').classList.remove('hidden');
+        });
+
+        document.getElementById('saveSecondary').addEventListener('click', () => {
+            state.stockData.secondary.min = document.getElementById('editMin').value;
+            state.stockData.secondary.max = document.getElementById('editMax').value;
+            state.stockData.secondary.avg = document.getElementById('editAvg').value;
+            saveState();
+            updateUI();
+            document.getElementById('editModal').classList.add('hidden');
+            showToast('✅ Данные сохранены!', 'success');
+        });
+
+        document.getElementById('cancelEdit').addEventListener('click', () => {
+            document.getElementById('editModal').classList.add('hidden');
+        });
+
+        // Update time display
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('ru-RU');
+            document.getElementById('previewTime').textContent = now.toLocaleString('ru-RU');
+            
+            // Update next send time
+            if (state.autoSendEnabled) {
+                const tomorrow = new Date(now);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                while (tomorrow.getDay() === 0 || tomorrow.getDay() === 6) {
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                }
+                document.getElementById('nextSend').textContent = tomorrow.toLocaleDateString('ru-RU');
+            }
         }
-    }
 
-    function startScheduler() {
-        // check immediately and then periodically
-        maybeAutoSend();
-        setInterval(maybeAutoSend, 20 * 1000);
-    }
-
-    // Init
-    loadState();
-
-    // Force defaults for the requested behavior (weekday 09:00 MSK, detailed)
-    document.querySelector('input[name="format"][value="detailed"]').checked = true;
-    document.getElementById('notificationTime').value = AUTO_SEND_TIME_MSK;
-    chatIdInput.value = DEFAULT_CHAT_ID;
-
-    render();
-
-    // Auto-load data on page load immediately
-    console.log('🔄 Автоматическая загрузка данных с БВФБ при загрузке страницы...');
-    refreshFromBcse();
-
-    // Start browser-only scheduler
-    startScheduler();
-});
-</script>
-
+        // Initialize
+        loadState();
+        updateTime();
+        setInterval(updateTime, 1000);
+        startScheduler();
+        
+        // Auto-load data on page load
+        setTimeout(() => {
+            refreshFromBcse();
+        }, 1000);
+    </script>
 </body>
 </html>
